@@ -2,7 +2,7 @@ from dependency_injector import containers, providers
 from app.core.config import settings
 from app.services.pdf_converter import PlaywrightPDFConverter
 from app.services.markdown_extractor import PyMuPDFMarkdownExtractor
-from app.services.llm_service import GroqLLMService
+from app.services.llm_service import GeminiLLMService
 from app.services.research_assistant import ResearchAssistantService
 
 class Container(containers.DeclarativeContainer):
@@ -19,9 +19,10 @@ class Container(containers.DeclarativeContainer):
     )
 
     llm_service = providers.Singleton(
-        GroqLLMService,
-        api_key=settings.GROQ_API_KEY,
-        model=settings.GROQ_MODEL
+        GeminiLLMService,
+        api_key=settings.GEMINI_API_KEY,
+        primary_model=settings.GEMINI_PRIMARY_MODEL,
+        fallback_model=settings.GEMINI_FALLBACK_MODEL
     )
 
     research_assistant_service = providers.Singleton(

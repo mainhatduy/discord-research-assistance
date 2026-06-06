@@ -69,10 +69,10 @@ sequenceDiagram
 - Sử dụng thư viện **PyMuPDF4LLM** để phân tích file PDF và chuyển đổi nội dung sang định dạng Markdown sạch (Clean Markdown).
 - Phương pháp này giúp giữ nguyên cấu trúc bảng biểu, danh sách, và đề mục nhỏ, tối ưu cho ngữ cảnh đầu vào của LLM.
 
-### Tính năng 4: Hỏi đáp qua LLM (Groq API)
-- Gửi câu hỏi của user và nội dung bài báo đã chuyển sang Markdown đến Groq API.
-- Sử dụng mô hình: `openai/gpt-oss-120b` (hoặc cấu hình tùy chỉnh).
-- Sử dụng cơ chế Streaming (`stream=True`) để nhận phản hồi từ LLM và hiển thị mượt mà trên Discord.
+### Tính năng 4: Hỏi đáp qua LLM (Gemini API)
+- Gửi câu hỏi của user và nội dung bài báo đã chuyển sang Markdown đến Gemini API thông qua thư viện `google-genai`.
+- Sử dụng mô hình chính: `gemini-3.5-flash`, tự động chuyển sang mô hình dự phòng `gemini-3.1-flash-lite` nếu gặp lỗi hết hạn mức (quota limit 429).
+- Sử dụng cơ chế Streaming để nhận phản hồi từ LLM và hiển thị mượt mà trên Discord.
 
 ---
 
@@ -106,7 +106,7 @@ discord-research-assistance/
     │   ├── __init__.py
     │   ├── pdf_converter.py     # Thực thi convert HTML sang PDF (sử dụng Playwright)
     │   ├── markdown_extractor.py # Thực thi trích xuất Markdown từ PDF (sử dụng PyMuPDF4LLM)
-    │   ├── llm_service.py       # Tương tác với Groq API
+    │   ├── llm_service.py       # Tương tác với Gemini API (tích hợp khả năng tự động chuyển đổi mô hình dự phòng)
     │   └── research_assistant.py # Use case orchestrator điều phối toàn bộ nghiệp vụ chính
     └── presentation/
         ├── __init__.py
@@ -141,7 +141,7 @@ Dự án sử dụng công cụ quản lý thư viện hiện đại **`uv`** đ
 
 ### Các thư viện cần cài đặt:
 - `discord.py`: Giao tiếp với Discord API.
-- `groq`: Tương tác với Groq LLM API.
+- `google-genai`: Tương tác với Gemini LLM API.
 - `pymupdf4llm`: Trích xuất tài liệu PDF sang Markdown.
 - `playwright`: Trình duyệt không đầu để chụp và xuất trang web sang PDF.
 - `pydantic-settings`: Đọc cấu hình từ file `.env` một cách an sau và tự động ép kiểu.
@@ -150,32 +150,27 @@ Dự án sử dụng công cụ quản lý thư viện hiện đại **`uv`** đ
 
 ---
 
-## 5. Mẫu Code LLM Groq API Tham Khảo
+## 5. Mẫu Code LLM Gemini API Tham Khảo
 
 Đoạn code dưới đây được sử dụng để tích hợp vào `app/services/llm_service.py`:
 
 ```python
-from groq import Groq
+from google import genai
+from google.genai import types
 
-client = Groq()
-completion = client.chat.completions.create(
-    model="openai/gpt-oss-120b",
-    messages=[
-      {
-        "role": "user",
-        "content": "Nội dung bài báo (Markdown) kèm câu hỏi..."
-      }
-    ],
-    temperature=1,
-    max_completion_tokens=8192,
-    top_p=1,
-    reasoning_effort="medium",
-    stream=True,
-    stop=None
+client = genai.Client()
+response = client.models.generate_content_stream(
+    model="gemini-3.5-flash",
+    contents="Nội dung bài báo (Markdown) kèm câu hỏi...",
+    config=types.GenerateContentConfig(
+        temperature=0.7,
+        system_instruction="You are a professional research assistant",
+    )
 )
 
-for chunk in completion:
-    print(chunk.choices[0].delta.content or "", end="")
+for chunk in response:
+    if chunk.text:
+        print(chunk.text, end="")
 ```
 
 ---

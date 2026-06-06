@@ -62,7 +62,7 @@ class ResearchAssistantService:
                 raise ValueError("Nội dung trích xuất từ tài liệu bị rỗng.")
                 
             # Step 3: Query the LLM and stream response
-            yield "🤖 Đang xử lý câu hỏi với Groq LLM (gpt-oss-120b)...\n\n"
+            yield "🤖 Đang xử lý câu hỏi với Gemini LLM...\n\n"
             async for chunk in self._llm_service.ask_question_stream(markdown_content, question):
                 yield chunk
                 

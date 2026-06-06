@@ -16,11 +16,11 @@ def main():
         print("Please add 'DISCORD_BOT_TOKEN=your_token_here' to the .env file in the project root.\n")
         sys.exit(1)
 
-    # Check if GROQ_API_KEY is set
-    if not settings.GROQ_API_KEY:
-        logger.error("Error: GROQ_API_KEY environment variable is not set!")
-        print("\n[CRITICAL ERROR] GROQ_API_KEY is not set in your .env file.")
-        print("Please add 'GROQ_API_KEY=your_key_here' to the .env file in the project root.\n")
+    # Check if GEMINI_API_KEY is set
+    if not settings.GEMINI_API_KEY:
+        logger.error("Error: GEMINI_API_KEY environment variable is not set!")
+        print("\n[CRITICAL ERROR] GEMINI_API_KEY is not set in your .env file.")
+        print("Please add 'GEMINI_API_KEY=your_key_here' to the .env file in the project root.\n")
         sys.exit(1)
 
     # Initialize Dependency Injection Container

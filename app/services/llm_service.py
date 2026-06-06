@@ -1,19 +1,22 @@
 from typing import AsyncGenerator
-from groq import AsyncGroq
+from google import genai
+from google.genai import types
+from google.genai import errors
 from app.domain.interfaces.llm_service import LLMServiceInterface
 from app.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-class GroqLLMService(LLMServiceInterface):
-    def __init__(self, api_key: str, model: str):
+class GeminiLLMService(LLMServiceInterface):
+    def __init__(self, api_key: str, primary_model: str, fallback_model: str):
         self._api_key = api_key
-        self._model = model
-        # Initialize AsyncGroq client
-        self.client = AsyncGroq(api_key=self._api_key)
+        self._primary_model = primary_model
+        self._fallback_model = fallback_model
+        # Initialize Google GenAI client
+        self.client = genai.Client(api_key=self._api_key)
 
     async def ask_question_stream(self, context: str, question: str) -> AsyncGenerator[str, None]:
-        logger.info(f"Querying Groq LLM using model: {self._model}")
+        logger.info(f"Querying Gemini LLM. Primary: {self._primary_model}, Fallback: {self._fallback_model}")
         
         system_prompt = (
             "You are a professional research assistant bot on Discord. "
@@ -31,25 +34,59 @@ class GroqLLMService(LLMServiceInterface):
             f"Please provide an answer based only on the provided article."
         )
         
-        try:
-            completion = await self.client.chat.completions.create(
-                model=self._model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message}
+        contents = [
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(text=user_message),
                 ],
-                temperature=1,
-                max_completion_tokens=8192,
-                top_p=1,
-                reasoning_effort="medium",
-                stream=True,
-                stop=None
-            )
-            
-            async for chunk in completion:
-                content = chunk.choices[0].delta.content or ""
-                if content:
-                    yield content
+            ),
+        ]
+        
+        generate_content_config = types.GenerateContentConfig(
+            temperature=0.7,
+            system_instruction=[
+                types.Part.from_text(text=system_prompt),
+            ],
+        )
+
+        yielded_any = False
+        try:
+            logger.info(f"Attempting to generate content stream using primary model: {self._primary_model}")
+            async with self.client.aio as aclient:
+                response = await aclient.models.generate_content_stream(
+                    model=self._primary_model,
+                    contents=contents,
+                    config=generate_content_config,
+                )
+                async for chunk in response:
+                    if chunk.text:
+                        yielded_any = True
+                        yield chunk.text
+        except errors.APIError as e:
+            # Check if quota limit was hit (429) and we haven't yielded anything yet.
+            if e.code == 429 and not yielded_any:
+                logger.warning(
+                    f"Primary model {self._primary_model} hit quota limit (429). "
+                    f"Swapping to fallback model {self._fallback_model}..."
+                )
+                yield "⚠️ *Đã đạt giới hạn quota của Gemini 3.5. Đang tự động chuyển sang Gemini 3.1 Flash Lite...*\n\n"
+                try:
+                    async with self.client.aio as aclient:
+                        response = await aclient.models.generate_content_stream(
+                            model=self._fallback_model,
+                            contents=contents,
+                            config=generate_content_config,
+                        )
+                        async for chunk in response:
+                            if chunk.text:
+                                yield chunk.text
+                except Exception as inner_e:
+                    logger.error(f"Fallback model {self._fallback_model} also failed: {inner_e}")
+                    raise inner_e
+            else:
+                logger.error(f"Gemini API error with code {e.code}: {e.message}")
+                raise e
         except Exception as e:
-            logger.error(f"Groq API streaming error: {e}")
+            logger.error(f"Gemini API unexpected streaming error: {e}")
             raise e
